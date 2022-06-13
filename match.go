@@ -16,15 +16,28 @@ var ErrMatchInvalid = NewError("validation_match_invalid", "must be in a valid f
 // An empty value is considered valid. Use the Required rule to make sure a value is not empty.
 func Match(re *regexp.Regexp) MatchRule {
 	return MatchRule{
-		re:  re,
-		err: ErrMatchInvalid,
+		re:     re,
+		err:    ErrMatchInvalid,
+		invert: false,
+	}
+}
+
+// NotMatch returns a validation rule that checks if a value doesn't matches the specified regular expression.
+// This rule should only be used for validating strings and byte slices, or a validation error will be reported.
+// An empty value is considered valid. Use the Required rule to make sure a value is not empty.
+func NotMatch(re *regexp.Regexp) MatchRule {
+	return MatchRule{
+		re:     re,
+		err:    ErrMatchInvalid,
+		invert: true,
 	}
 }
 
 // MatchRule is a validation rule that checks if a value matches the specified regular expression.
 type MatchRule struct {
-	re  *regexp.Regexp
-	err Error
+	re     *regexp.Regexp
+	err    Error
+	invert bool
 }
 
 // Validate checks if the given value is valid or not.
@@ -35,11 +48,29 @@ func (r MatchRule) Validate(value interface{}) error {
 	}
 
 	isString, str, isBytes, bs := StringOrBytes(value)
-	if isString && (str == "" || r.re.MatchString(str)) {
-		return nil
-	} else if isBytes && (len(bs) == 0 || r.re.Match(bs)) {
-		return nil
+
+	switch {
+	case isString:
+		if str == "" {
+			return nil
+		}
+		x := r.invert
+		y := r.re.MatchString(str)
+		if (x || y) && !(x && y) {
+			return nil
+		}
+
+	case isBytes:
+		if len(bs) == 0 {
+			return nil
+		}
+		x := r.invert
+		y := r.re.Match(bs)
+		if (x || y) && !(x && y) {
+			return nil
+		}
 	}
+
 	return r.err
 }
 
